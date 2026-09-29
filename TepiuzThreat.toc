@@ -1,0 +1,11 @@
+## Interface: 16001
+## Title: Tepiuz Threat
+## Notes: Shows your threat on enemy nameplates and the target frame.
+## Author: Tepiuz
+## Version: @project-version@
+## Category: Combat
+## IconTexture: Interface\AddOns\TepiuzThreat\Assets\icon.png
+## SavedVariables: TepiuzThreatDB
+## X-Curse-Project-ID: 1718445
+
+TepiuzThreat.lua
