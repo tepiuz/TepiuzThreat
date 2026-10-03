@@ -6,6 +6,7 @@ local active, labels = {}, {}
 local targetLabel
 local failures, lastFailure = 0, "none"
 local elapsedSinceUpdate = 0
+local auraLayoutPending = false
 local ready = false
 local combatStateRestricted = false
 
@@ -53,7 +54,46 @@ local function NewLabel(parent, anchor, y)
     text:SetPoint("LEFT", anchor, "RIGHT", 8, y or 0)
     text:SetJustifyH("LEFT")
     StyleLabel(text)
-    return { text = text, state = "hidden" }
+    return { text = text, state = "hidden", anchor = anchor }
+end
+
+local function PubliclyVisible(frame)
+    if not frame or frame:IsForbidden() then return false end
+    local visible = frame:IsVisible()
+    return not issecretvalue(visible) and visible
+end
+
+local function EffectAnchor(parent)
+    local auras = parent.AurasFrame
+    if not PubliclyVisible(auras) then return end
+
+    -- NPC crowd-control icons share a list whose width follows all displayed icons.
+    -- The list itself can stay shown when empty; check the displayed children.
+    local list = auras.CrowdControlListFrame
+    if PubliclyVisible(list) then
+        for _, icon in ipairs({ list:GetChildren() }) do
+            if PubliclyVisible(icon) then return list end
+        end
+    end
+
+    -- Enemy players use a separate single-icon loss-of-control display.
+    local control = auras.LossOfControlFrame
+    if PubliclyVisible(control) and PubliclyVisible(control.AuraItemFrame) then
+        return control
+    end
+end
+
+local function PositionPlateLabel(label, parent, defaultAnchor)
+    -- Keep layout failures separate from threat rendering. Do not read aura data
+    -- or the size of our text, which can contain a restricted threat number.
+    local ok, effectAnchor = pcall(EffectAnchor, parent)
+    if not ok then Failure("effect layout lookup rejected") end
+    local anchor = ok and effectAnchor or defaultAnchor
+    if label.anchor ~= anchor then
+        label.text:ClearAllPoints()
+        label.text:SetPoint("LEFT", anchor, "RIGHT", 8, 0)
+        label.anchor = anchor
+    end
 end
 
 local function TargetPortrait()
@@ -126,7 +166,8 @@ local function RemovePlate(unit)
     active[unit] = nil
 end
 
-local function RefreshPlate(unit, entry)
+local function RefreshPlate(unit, entry, layoutOnly)
+    entry.auraLayoutPending = nil
     -- Skip forbidden nameplates.
     local plate = C_NamePlate.GetNamePlateForUnit(unit)
     local parent = plate and not plate:IsForbidden() and plate.UnitFrame
@@ -150,7 +191,15 @@ local function RefreshPlate(unit, entry)
         Clear(entry.label)
         entry.label = label
     end
-    SafeRender(label, unit)
+    PositionPlateLabel(label, parent, anchor)
+    if not layoutOnly then SafeRender(label, unit) end
+end
+
+local function SafeRefreshPlate(unit, entry, layoutOnly)
+    if not pcall(RefreshPlate, unit, entry, layoutOnly) then
+        Clear(entry.label)
+        Failure("nameplate attachment rejected")
+    end
 end
 
 local function Enabled(key)
@@ -195,10 +244,7 @@ local function RefreshAll()
         return
     end
     for unit, entry in pairs(active) do
-        if not pcall(RefreshPlate, unit, entry) then
-            Clear(entry.label)
-            Failure("nameplate attachment rejected")
-        end
+        SafeRefreshPlate(unit, entry)
     end
 end
 
@@ -287,6 +333,14 @@ driver:SetScript("OnEvent", function(_, event, unit)
         end
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
         if not issecretvalue(unit) and type(unit) == "string" then RemovePlate(unit) end
+    elseif event == "UNIT_AURA" then
+        if not issecretvalue(unit) and type(unit) == "string" then
+            local entry = active[unit]
+            if entry then
+                entry.auraLayoutPending = true
+                auraLayoutPending = true
+            end
+        end
     else
         -- Threat events may name the player, the target, or a mob. Do not compare those payloads.
         RefreshAll()
@@ -297,7 +351,7 @@ for _, event in ipairs({
     "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEAVING_WORLD",
     "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "PLAYER_TARGET_CHANGED",
     "UNIT_THREAT_SITUATION_UPDATE", "UNIT_THREAT_LIST_UPDATE",
-    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UNIT_FACTION", "UNIT_FLAGS",
+    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UNIT_FACTION", "UNIT_FLAGS", "UNIT_AURA",
 }) do
     if not pcall(driver.RegisterEvent, driver, event) then Failure("event unavailable: " .. event) end
 end
@@ -307,7 +361,20 @@ driver:SetScript("OnUpdate", function(_, elapsed)
     elapsedSinceUpdate = elapsedSinceUpdate + elapsed
     if elapsedSinceUpdate >= 0.2 then
         elapsedSinceUpdate = 0
+        auraLayoutPending = false
         RefreshAll()
+    elseif ready and auraLayoutPending then
+        -- UNIT_AURA handlers can run before Blizzard updates the icons. Wait until
+        -- OnUpdate, then reposition affected visible labels without querying threat.
+        auraLayoutPending = false
+        for unit, entry in pairs(active) do
+            if entry.auraLayoutPending then
+                entry.auraLayoutPending = nil
+                if entry.label and entry.label.state ~= "hidden" then
+                    SafeRefreshPlate(unit, entry, true)
+                end
+            end
+        end
     end
 end)
 

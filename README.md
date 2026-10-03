@@ -23,7 +23,7 @@ The folder name has to be `TepiuzThreat`. Start the game, enable Tepiuz Threat o
 
 ## Usage
 
-Attackable nameplates show a whole-number percentage just past the level badge. The target frame shows a larger percentage centered above the portrait. The label hides when that enemy has no threat data for you. A real 0% stays visible.
+Attackable nameplates show a whole-number percentage just past the level badge. When crowd-control effect icons appear beside the badge, the percentage moves past the whole icon group and returns when they disappear. The target frame shows a larger percentage centered above the portrait. The label hides when that enemy has no threat data for you. A real 0% stays visible.
 
 `/tthreat` prints a short status line: client version, whether the addon is running, how many nameplates it is tracking, and whether a lookup failed. It does not print threat numbers. `/tepiuzthreat` does the same thing.
 
