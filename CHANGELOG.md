@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 - Adds a choice of threat displays on nameplates and the target frame: a percentage, a number without `%`, or text such as "Low threat", "High threat", and "AGGRO".
 - Adds colors that change as you get closer to pulling aggro, with an option to use white text instead.
