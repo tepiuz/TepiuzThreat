@@ -1,0 +1,24 @@
+{
+  "runtime.version": "Lua 5.1",
+  "diagnostics.globals": [
+    "C_AddOns",
+    "C_CurveUtil",
+    "C_NamePlate",
+    "CreateColor",
+    "CreateFrame",
+    "Enum",
+    "GetAddOnMetadata",
+    "GetBuildInfo",
+    "GetThreatStatusColor",
+    "InCombatLockdown",
+    "Settings",
+    "SlashCmdList",
+    "TargetFrame",
+    "TargetFramePortrait",
+    "UnitCanAttack",
+    "UnitDetailedThreatSituation",
+    "UnitExists",
+    "UnitThreatSituation",
+    "issecretvalue"
+  ]
+}

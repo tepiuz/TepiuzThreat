@@ -7,5 +7,6 @@
 ## IconTexture: Interface\AddOns\TepiuzThreat\Assets\icon.png
 ## SavedVariables: TepiuzThreatDB
 ## X-Curse-Project-ID: 1718445
+## X-Wago-ID: 56nbVD69
 
 TepiuzThreat.lua

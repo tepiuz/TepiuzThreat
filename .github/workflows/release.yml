@@ -1,5 +1,5 @@
 # Packages the addon when an annotated tag is pushed.
-# Creates a GitHub release and uploads the zip to CurseForge.
+# Creates a GitHub release and uploads the zip to CurseForge and Wago.
 name: Package and release
 
 on:
@@ -15,12 +15,32 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Clone project
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Prepare release
+        shell: bash
+        run: |
+          if [[ -z "$CF_API_KEY" || -z "$WAGO_API_TOKEN" ]]; then
+            echo "::error::Both CF_API_KEY and WAGO_API_TOKEN must be configured before publishing."
+            exit 1
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## $version" '
+            $0 == heading { found = 1; print "# Changelog\n"; print; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md"
+          if [[ ! -s "$RUNNER_TEMP/CHANGELOG.md" ]]; then
+            echo "::error::No changelog section found for $GITHUB_REF_NAME."
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
 
       - name: Package and release
         uses: BigWigsMods/packager@v2

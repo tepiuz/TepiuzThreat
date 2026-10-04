@@ -1,5 +1,10 @@
 package-as: TepiuzThreat
 
+ignore:
+  - .luarc.json
+  - tests
+  - work
+
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown
