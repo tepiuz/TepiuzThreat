@@ -2,8 +2,9 @@ package-as: TepiuzThreat
 
 ignore:
   - .luarc.json
+  - DEVELOPMENT.md
+  - TepiuzThreatDev.toc
   - tests
-  - work
 
 manual-changelog:
   filename: CHANGELOG.md

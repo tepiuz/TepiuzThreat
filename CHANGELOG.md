@@ -1,4 +1,8 @@
-# Changelog
+## 1.2.0
+
+- Fix mismatched threat text and colors between nameplates and the target frame.
+- Use **Low threat**, **High threat**, and **AGGRO** consistently on nameplates and the target frame.
+- Match colors and the optional pulsing warning to these labels. Threat numbers stay the same.
 
 ## 1.1.0
 

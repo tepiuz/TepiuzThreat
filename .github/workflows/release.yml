@@ -32,7 +32,7 @@ jobs:
           fi
           version="${GITHUB_REF_NAME#v}"
           awk -v heading="## $version" '
-            $0 == heading { found = 1; print "# Changelog\n"; print; next }
+            $0 == heading { found = 1; print; next }
             found && /^## / { exit }
             found { print }
           ' CHANGELOG.md > "$RUNNER_TEMP/CHANGELOG.md"
