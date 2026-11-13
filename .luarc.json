@@ -4,6 +4,8 @@
     "C_NamePlate",
     "CreateFrame",
     "InCombatLockdown",
+    "IsInGroup",
+    "IsInInstance",
     "Settings",
     "SlashCmdList",
     "TargetFrame",

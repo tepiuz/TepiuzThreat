@@ -1,3 +1,12 @@
+## 1.3.0
+
+- Choose Left, Top, Right, or Bottom independently for nameplate and target frame threat text. Right remains the default.
+- Improve Top spacing above nameplate names and the target frame. Bottom clears visible nameplate cast bars and accounts for target frame padding.
+- Add a Larger text option to double the threat text size.
+- Choose when threat appears: While in a party or raid (default), In dungeons or raids, or Always. Existing saved visibility preferences are preserved.
+- Remove the Only show in combat option. Threat text automatically hides when threat data is unavailable.
+- Mark default choices in the placement and threat-display menus.
+
 ## 1.2.0
 
 - Fix mismatched threat text and colors between nameplates and the target frame.

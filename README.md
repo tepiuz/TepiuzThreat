@@ -21,21 +21,26 @@ The folder name has to be `TepiuzThreat`. Start the game, enable Tepiuz Threat o
 
 ## Features
 
-- Show threat beside enemy nameplates and above the target portrait.
+- Show threat to the left, top, right, or bottom of enemy nameplates and independently around the target frame.
 - Choose a percentage, a number, or **Low threat**, **High threat**, and **AGGRO**.
 - Use matching threat colors on both displays, or keep the text white.
 - Enable an optional pulse at High threat and a brief pop when you gain aggro.
-- Keep crowd-control icons readable, with threat text positioned beside them.
+- In the right-side position, threat text moves past visible crowd-control icons.
 
 ## Options
 
 Open with `/tthreat` or `/tepiuzthreat`, or Settings → AddOns → Tepiuz Threat.
 
+Threat labels automatically hide when threat data is unavailable.
+
 | Option | Default | Effect |
 | --- | --- | --- |
-| Only show in combat | On | Hide threat outside combat. |
+| Show threat | While in a party or raid | Any location while grouped; In dungeons or raids (even solo); or Always, whether solo or grouped. |
 | Show on nameplates / target frame | Both on | Choose where threat appears. |
-| Threat display | Number with % | Show a percentage, a number only, or threat text. |
+| Nameplate text position | Right | Left, top, right, or bottom. Top clears the unit name; bottom clears a visible cast bar. |
+| Target frame text position | Right | Left, top, right, or bottom of the target frame, independently of nameplates. Top and bottom exclude invisible frame padding. |
+| Threat display | Percentage | Percentage (65%), Number (65), or Text (Low threat, High threat, AGGRO). |
+| Larger text | Off | Double the threat text size on nameplates and the target frame. |
 | Color by threat | On | Neutral for Low threat, yellow for High threat, red for AGGRO. Turn off for white text. |
 | Pop when gaining aggro | Off | Briefly enlarge the text when you gain aggro. |
 | Pulse near aggro | Off | Pulse at High threat until it drops or you gain aggro. |

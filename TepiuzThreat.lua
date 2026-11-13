@@ -20,12 +20,21 @@ local THREAT_STATES = {
 }
 
 local OPTIONS = {
-    { key = "onlyInCombat", default = true, name = "Only show in combat", tooltip = "Hide threat until you enter combat." },
+    { key = "visibilityMode", default = "group", name = "Show threat", tooltip = "While in a party or raid: any location, including the open world. In dungeons or raids: inside those instances, even when solo. Always: any location, whether solo or grouped. Threat data is always required.", choices = {
+        { "group", "While in a party or raid (Default)" }, { "instance", "In dungeons or raids" }, { "always", "Always" },
+    } },
     { key = "showOnNameplates", default = true, name = "Show on nameplates", tooltip = "Show threat on attackable nameplates." },
     { key = "showOnTarget", default = true, name = "Show on target frame", tooltip = "Show threat on the target frame." },
-    { key = "displayMode", default = "percent", name = "Threat display", tooltip = "Show a number with %, a number only, or Low threat, High threat, and AGGRO.", choices = {
-        { "percent", "Number with %" }, { "number", "Number only" }, { "text", "Text bands" },
+    { key = "nameplatePosition", default = "right", name = "Nameplate text position", tooltip = "Place threat text to the left, above, to the right, or below the nameplate. Top clears the unit name; bottom clears a visible cast bar.", choices = {
+        { "left", "Left" }, { "top", "Top" }, { "right", "Right (Default)" }, { "bottom", "Bottom" },
     } },
+    { key = "targetPosition", default = "right", name = "Target frame text position", tooltip = "Place threat text to the left, above, to the right, or below the target frame. Top and bottom are centered on the frame.", choices = {
+        { "left", "Left" }, { "top", "Top" }, { "right", "Right (Default)" }, { "bottom", "Bottom" },
+    } },
+    { key = "displayMode", default = "percent", name = "Threat display", tooltip = "Percentage: 65%. Number: 65. Text: Low threat, High threat, or AGGRO.", choices = {
+        { "percent", "Percentage (Default)" }, { "number", "Number" }, { "text", "Text" },
+    } },
+    { key = "largerText", default = false, name = "Larger text", tooltip = "Double the threat text size on nameplates and the target frame." },
     -- Keep the saved key so existing color preferences survive the rule change.
     { key = "colorGradient", default = true, name = "Color by threat", tooltip = "Use neutral for Low threat, yellow for High threat, and red for AGGRO. Turn off for white text." },
     { key = "aggroPop", default = false, name = "Pop when gaining aggro", tooltip = "Briefly enlarge the threat text when you gain aggro." },
@@ -101,16 +110,24 @@ local function StyleLabel(text)
     local font, size = text:GetFont()
     if type(font) == "string" and type(size) == "number" and not issecretvalue(font) and not issecretvalue(size) then
         text:SetFont(font, size, "THICKOUTLINE")
+    else
+        font, size = nil, nil
     end
     text:Hide()
+    return font, size
+end
+
+local function PositionText(text, parent, point)
+    text:ClearAllPoints()
+    text:SetPoint(point, parent, point, 0, 0)
+    text:SetJustifyH((point == "LEFT" or point == "RIGHT") and point or "CENTER")
 end
 
 local function NewText(label, parent)
     local text = parent:CreateFontString(nil, "OVERLAY", label.font)
-    text:SetPoint(label.point, parent, label.point, 0, 0)
-    text:SetJustifyH(label.point == "LEFT" and "LEFT" or "CENTER")
-    StyleLabel(text)
-    return text
+    PositionText(text, parent, label.point)
+    local font, size = StyleLabel(text)
+    return text, font, size
 end
 
 local function NewDisplay(label)
@@ -119,7 +136,8 @@ local function NewDisplay(label)
     frame:Hide()
     local content = CreateFrame("Frame", nil, frame)
     content:SetAllPoints(frame)
-    return { frame = frame, content = content, text = NewText(label, content) }
+    local text, font, size = NewText(label, content)
+    return { frame = frame, content = content, text = text, baseFont = font, baseSize = size, textScale = 1 }
 end
 
 local function NewLabelFrame(parent, point, font)
@@ -131,19 +149,18 @@ local function NewLabelFrame(parent, point, font)
     return label
 end
 
-local function NewLabel(parent, anchor)
-    local label = NewLabelFrame(parent, "LEFT", "GameFontHighlightSmall")
-    label.frame:SetPoint("LEFT", anchor, "RIGHT", 8, 0)
-    label.anchor = anchor
-    return label
-end
-
 local function SafeDisplay(display, percentage, status, mode)
     if mode == "text" and status == nil then
         HideDisplay(display)
         return false
     end
     local ok = pcall(function()
+        local scale = Enabled("largerText") and 2 or 1
+        if display.baseFont and display.textScale ~= scale then
+            -- Always use the original template size; repeated refreshes must not compound it.
+            display.text:SetFont(display.baseFont, display.baseSize * scale, "THICKOUTLINE")
+            display.textScale = scale
+        end
         if mode == "text" then
             display.text:SetText(THREAT_STATES[status].text)
         else
@@ -267,34 +284,42 @@ local function EffectAnchor(parent)
     end
 end
 
-local function PositionPlateLabel(label, parent, defaultAnchor)
-    -- Keep layout failures separate from threat rendering. Do not read aura data
-    -- or the size of our text, which can contain a restricted threat number.
-    local ok, effectAnchor = pcall(EffectAnchor, parent)
-    local anchor = ok and effectAnchor or defaultAnchor
-    if label.anchor ~= anchor then
+local function PositionLabel(label, anchor, position, verticalOffset)
+    local point, relativePoint, x, y = "LEFT", "RIGHT", 8, 0
+    if position == "left" then
+        point, relativePoint, x, y = "RIGHT", "LEFT", -8, 0
+    elseif position == "top" then
+        point, relativePoint, x, y = "BOTTOM", "TOP", 0, 8
+    elseif position == "bottom" then
+        point, relativePoint, x, y = "TOP", "BOTTOM", 0, -8
+    end
+    y = y + (verticalOffset or 0)
+    if label.anchor ~= anchor or label.position ~= position or label.verticalOffset ~= verticalOffset then
         label.frame:ClearAllPoints()
-        label.frame:SetPoint("LEFT", anchor, "RIGHT", 8, 0)
-        label.anchor = anchor
+        label.frame:SetPoint(point, anchor, relativePoint, x, y)
+        label.point = point
+        PositionText(label.display.text, label.display.content, point)
+        if label.warning then PositionText(label.warning.text, label.warning.content, point) end
+        label.anchor, label.position, label.verticalOffset = anchor, position, verticalOffset
     end
 end
 
-local function TargetPortrait()
-    local frame = TargetFrame
-    if not frame or frame:IsForbidden() then return end
-    -- Classic target layout: the round portrait sits on the right of the frame.
-    local portrait = frame.portrait or frame.Portrait or TargetFramePortrait
-    if portrait and not portrait:IsForbidden() then
-        return portrait
+local function PositionPlateLabel(label, parent, defaultAnchor)
+    -- Anchor our own frames without measuring restricted text or health values.
+    local position = Option("nameplatePosition")
+    local anchor = parent.HealthBarsContainer or defaultAnchor
+    if position == "top" and PubliclyVisible(parent.name) then
+        -- Clear the unit name, rather than growing up into it from the health bar.
+        anchor = parent.name
+    elseif position == "bottom" then
+        local casts = parent.CastBarsContainer
+        if casts and PubliclyVisible(casts.castBar) then anchor = casts.castBar end
+    elseif position == "right" then
+        -- Preserve crowd-control avoidance for the original right-side layout.
+        local ok, effectAnchor = pcall(EffectAnchor, parent)
+        anchor = ok and effectAnchor or defaultAnchor
     end
-end
-
-local function NewTargetLabel(portrait)
-    local label = NewLabelFrame(TargetFrame, "BOTTOM", "GameFontHighlightLarge")
-    -- Pixels above the portrait. Increase this to move the percentage up.
-    local gapAbovePortrait = 8
-    label.frame:SetPoint("BOTTOM", portrait, "TOP", 0, gapAbovePortrait)
-    return label
+    PositionLabel(label, anchor, position)
 end
 
 local function RenderPresentation(label, percentage, status)
@@ -368,7 +393,7 @@ local function RefreshPlate(unit, entry, layoutOnly)
     -- Skip forbidden nameplates.
     local plate = C_NamePlate.GetNamePlateForUnit(unit)
     local parent = plate and not plate:IsForbidden() and plate.UnitFrame
-    -- The level badge sits outside the health bar. Anchor past it.
+    -- The right-side layout sits past the level badge; other positions use the health bar.
     local anchor = parent and (parent.PlayerLevelDiffFrame or parent.HealthBarsContainer)
     if not parent or not anchor or parent:IsForbidden() then
         Clear(entry.label)
@@ -381,7 +406,7 @@ local function RefreshPlate(unit, entry, layoutOnly)
     -- Keep our cache off Blizzard objects and resolve the parent on each update.
     local label = labels[parent]
     if not label then
-        label = NewLabel(parent, anchor)
+        label = NewLabelFrame(parent, "RIGHT", "GameFontHighlightSmall")
         labels[parent] = label
     end
     if entry.label ~= label then
@@ -398,28 +423,47 @@ local function SafeRefreshPlate(unit, entry, layoutOnly)
     end
 end
 
-local function InCombat()
-    local ok, locked = pcall(InCombatLockdown)
-    -- Fail open. A restricted combat flag should not hide the labels permanently.
-    if not ok or issecretvalue(locked) then
-        return true
+local function InGroupContent()
+    if type(IsInInstance) ~= "function" then return false end
+    local ok, inInstance, instanceType = pcall(IsInInstance)
+    if not ok or issecretvalue(inInstance) or issecretvalue(instanceType) then return false end
+    return inInstance == true and (instanceType == "party" or instanceType == "raid")
+end
+
+local function ShouldShowThreat()
+    local mode = Option("visibilityMode")
+    if mode == "instance" then return InGroupContent() end
+    if mode == "group" then
+        -- IsInGroup includes raid groups and automatically formed instance groups.
+        if type(IsInGroup) ~= "function" then return false end
+        local ok, inGroup = pcall(IsInGroup)
+        return ok and not issecretvalue(inGroup) and inGroup == true
     end
-    return not not locked
+    return true
 end
 
 local function RefreshAll()
     if not ready then return end
-    local show = not Enabled("onlyInCombat") or InCombat()
+    local show = ShouldShowThreat()
 
     if show and Enabled("showOnTarget") then
-        if not targetLabel then
-            local portrait = TargetPortrait()
-            if portrait then
-                local ok, label = pcall(NewTargetLabel, portrait)
-                if ok then targetLabel = label end
+        local ok = pcall(function()
+            if not TargetFrame or TargetFrame:IsForbidden() then
+                Clear(targetLabel)
+                return
             end
-        end
-        if targetLabel then SafeRender(targetLabel, "target") end
+            if not targetLabel then
+                targetLabel = NewLabelFrame(TargetFrame, "LEFT", "GameFontHighlightLarge")
+            end
+            local position = Option("targetPosition")
+            -- Forever's 232x100 target frame includes empty space above the
+            -- portrait (19 px) and below the level badge (7 px). Keep horizontal
+            -- centering on the full frame, but remove that vertical padding.
+            local inset = position == "top" and -19 or position == "bottom" and 7 or 0
+            PositionLabel(targetLabel, TargetFrame, position, inset)
+            SafeRender(targetLabel, "target")
+        end)
+        if not ok then Clear(targetLabel) end
     else
         Clear(targetLabel)
     end
@@ -435,6 +479,11 @@ end
 
 local function RegisterSettings()
     if type(TepiuzThreatDB) ~= "table" then TepiuzThreatDB = {} end
+    -- Preserve the earlier local checkbox preference unless a new mode is saved.
+    if TepiuzThreatDB.visibilityMode == nil and type(TepiuzThreatDB.onlyInGroupContent) == "boolean" then
+        TepiuzThreatDB.visibilityMode = TepiuzThreatDB.onlyInGroupContent == true and "instance" or "always"
+    end
+    TepiuzThreatDB.onlyInGroupContent = nil
     for _, option in ipairs(OPTIONS) do
         local value = TepiuzThreatDB[option.key]
         local valid = type(value) == type(option.default)
@@ -556,6 +605,7 @@ for _, event in ipairs({
     "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "PLAYER_TARGET_CHANGED",
     "UNIT_THREAT_SITUATION_UPDATE", "UNIT_THREAT_LIST_UPDATE",
     "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UNIT_FACTION", "UNIT_FLAGS", "UNIT_AURA",
+    "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE",
 }) do
     pcall(driver.RegisterEvent, driver, event)
 end
@@ -586,8 +636,8 @@ end)
 
 SLASH_TEPIUZTHREAT1 = "/tthreat"
 SLASH_TEPIUZTHREAT2 = "/tepiuzthreat"
----@param _message? string
-SlashCmdList.TEPIUZTHREAT = function(_message)
+---@param _? string
+SlashCmdList.TEPIUZTHREAT = function(_)
     if settingsCategoryID and Settings and type(Settings.OpenToCategory) == "function"
         and pcall(Settings.OpenToCategory, settingsCategoryID) then
         return
